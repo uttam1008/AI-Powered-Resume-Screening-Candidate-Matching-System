@@ -44,6 +44,11 @@ export const jobService = {
     return data
   },
 
+  async updateJobStatus(id: string, status: 'open' | 'closed'): Promise<JobRole> {
+    const { data } = await apiClient.put<JobRole>(`/jobs/${id}`, { status })
+    return data
+  },
+
   async deleteJob(id: string): Promise<void> {
     await apiClient.delete(`/jobs/${id}`)
   },

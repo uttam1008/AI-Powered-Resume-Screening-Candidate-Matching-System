@@ -4,7 +4,7 @@ api/v1/routes/rag.py — RAG retrieval endpoints.
 from fastapi import APIRouter, Depends, HTTPException, status
 
 from api.v1.dependencies import get_rag_service
-from llm.rag import RagService, ResumeMatch, ChunkHit
+from llm.rag import RagService, ResumeMatch
 from schemas.rag import (
     ChunkHitSchema,
     RagQueryRequest,

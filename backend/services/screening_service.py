@@ -9,6 +9,7 @@ Pipeline steps:
   5. Upsert MatchResult (unique per job_role + resume)
   6. Return sorted MatchResult list
 """
+import asyncio
 import json
 import uuid
 from typing import Optional
@@ -24,6 +25,7 @@ from llm.prompts import SCREENING_PROMPT
 from llm.rag import RagService
 from models.job_role import JobRole
 from models.match_result import MatchResult
+from models.resume import Resume
 
 logger = structlog.get_logger(__name__)
 
@@ -60,44 +62,63 @@ class ScreeningService:
         )
         logger.info("screening.resumes_retrieved", count=len(resume_matches))
 
-        results: list[MatchResult] = []
+        job_description_text = (
+            f"Title: {job.title}\n"
+            f"Department: {job.department or 'N/A'}\n"
+            f"Description: {job.description}\n"
+            f"Requirements: {job.requirements}"
+        )
 
-        for rm in resume_matches:
+        async def _evaluate_resume(rm):
             resume = rm.resume
-
-            # ── Step 3: Assemble context from top-matching chunks ─────────────
             context_text = "\n\n---\n\n".join(
                 c.text for c in rm.top_chunks[:MAX_CONTEXT_CHUNKS]
             )
             resume_context = context_text or resume.raw_text or ""
-
-            # ── Step 4: Send to Gemini LLM ────────────────────────────────────
             prompt = SCREENING_PROMPT.format(
-                job_description=(
-                    f"Title: {job.title}\n"
-                    f"Department: {job.department or 'N/A'}\n"
-                    f"Description: {job.description}\n"
-                    f"Requirements: {job.requirements}"
-                ),
+                job_description=job_description_text,
                 resume_chunks=resume_context,
             )
             raw_response = await gemini_client.generate(prompt)
-
-            # ── Parse JSON Response ───────────────────────────────────────────
             parsed = self._parse_llm_response(raw_response, resume.id)
+            return resume, parsed, raw_response
+
+        # ── Step 3 & 4: Evaluate all candidates concurrently ──────────────
+        eval_tasks = [_evaluate_resume(rm) for rm in resume_matches]
+        eval_results = await asyncio.gather(*eval_tasks, return_exceptions=True)
+
+        results: list[tuple[MatchResult, Resume]] = []
+        last_error = None
+        for eval_res in eval_results:
+            if isinstance(eval_res, Exception):
+                logger.error("screening.evaluation_error", error=str(eval_res))
+                last_error = eval_res
+                continue
+            
+            resume, parsed, raw_response = eval_res
             if parsed is None:
                 continue
-
+            
             # ── Step 5: Upsert MatchResult ────────────────────────────────────
             mr = await self._upsert_match_result(job.id, resume.id, parsed, raw_response)
-            mr.resume = resume
-            results.append(mr)
+            results.append((mr, resume))
+            
+        if last_error and not results:
+            raise last_error
 
         await self.db.flush()
-        logger.info("screening.complete", results_count=len(results))
+        
+        # Prevent MissingGreenlet during FastAPI serialization by refreshing and restoring relationships
+        final_results = []
+        for mr, resume in results:
+            await self.db.refresh(mr)
+            mr.resume = resume
+            final_results.append(mr)
+
+        logger.info("screening.complete", results_count=len(final_results))
 
         # Return sorted by match_score DESC
-        return sorted(results, key=lambda r: r.match_score, reverse=True)
+        return sorted(final_results, key=lambda r: r.match_score, reverse=True)
 
     # ── Read Queries ──────────────────────────────────────────────────────────
 
@@ -166,7 +187,7 @@ class ScreeningService:
         missing_skills = parsed.get("missing_skills") or parsed.get("weaknesses", [])
         
         # Auto-decision engine
-        decision_status = "hire" if score >= 80 else "reject"
+        decision_status = "hire" if score >= 75 else "reject"
 
         existing_q = await self.db.execute(
             select(MatchResult).where(

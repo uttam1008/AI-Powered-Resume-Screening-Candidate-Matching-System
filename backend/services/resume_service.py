@@ -29,14 +29,20 @@ class ResumeService:
         # Ensure upload dir exists
         os.makedirs(settings.UPLOAD_DIR, exist_ok=True)
 
-    async def get_all(self, page: int = 1, size: int = 20) -> dict:
+    async def get_all(self, page: int = 1, size: int = 20, job_role_id: uuid.UUID | None = None) -> dict:
         offset = (page - 1) * size
-        total_q = await self.db.execute(select(func.count(Resume.id)))
+        
+        count_stmt = select(func.count(Resume.id))
+        stmt = select(Resume).order_by(Resume.created_at.desc()).offset(offset).limit(size)
+        
+        if job_role_id:
+            count_stmt = count_stmt.where(Resume.job_role_id == job_role_id)
+            stmt = stmt.where(Resume.job_role_id == job_role_id)
+
+        total_q = await self.db.execute(count_stmt)
         total = total_q.scalar_one()
 
-        result = await self.db.execute(
-            select(Resume).order_by(Resume.created_at.desc()).offset(offset).limit(size)
-        )
+        result = await self.db.execute(stmt)
         return {
             "items": result.scalars().all(),
             "total": total,

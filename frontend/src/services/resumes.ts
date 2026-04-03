@@ -1,5 +1,19 @@
 import apiClient from './api'
 
+export interface Resume {
+  id: string
+  candidate_name: string
+  candidate_email: string
+  candidate_phone?: string
+  job_role_id?: string
+  skills: string[]
+  experience_years: number
+  education?: string
+  file_name: string
+  file_url: string
+  created_at: string
+}
+
 export interface UploadResponse {
   resume: {
     id: string
@@ -11,6 +25,13 @@ export interface UploadResponse {
 }
 
 export const resumeService = {
+  async getResumes(page: number = 1, size: number = 50, jobRoleId?: string): Promise<Resume[]> {
+    const params: Record<string, unknown> = { page, size }
+    if (jobRoleId) params.job_role_id = jobRoleId
+    const { data } = await apiClient.get<{ items: Resume[] }>('/resumes', { params })
+    return data.items
+  },
+
   async uploadResume(file: File, jobRoleId?: string): Promise<UploadResponse> {
     const formData = new FormData()
     formData.append('file', file)

@@ -8,7 +8,7 @@ from decimal import Decimal
 from typing import Optional
 
 from sqlalchemy import (
-    DateTime, Enum, ForeignKey, Numeric, String, Text, UniqueConstraint, func
+    DateTime, ForeignKey, Numeric, String, Text, UniqueConstraint, func
 )
 from sqlalchemy.dialects.postgresql import ARRAY, UUID
 from sqlalchemy.orm import Mapped, mapped_column, relationship

@@ -2,7 +2,6 @@
 services/job_service.py — Business logic for JobRole CRUD operations.
 """
 import uuid
-from typing import Optional
 
 import structlog
 from sqlalchemy import select, func
@@ -84,6 +83,9 @@ class JobService:
     async def update(self, job_id: uuid.UUID, payload: JobUpdate) -> JobRole:
         job = await self.get_by_id(job_id)
         
+        # Preserve resume_count because refresh() will drop unmapped attributes
+        resume_count = getattr(job, "resume_count", 0)
+        
         need_new_embedding = False
         payload_dict = payload.model_dump(exclude_none=True)
         
@@ -98,6 +100,8 @@ class JobService:
             job.embedding = await gemini_client.embed(embedding_text)
 
         await self.db.flush()
+        await self.db.refresh(job)
+        job.resume_count = resume_count
         return job
 
     async def delete(self, job_id: uuid.UUID) -> None:

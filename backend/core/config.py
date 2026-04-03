@@ -8,16 +8,15 @@ from typing import List
 
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
-# Always resolves to the project root .env regardless of shell CWD
-_ENV_FILE = Path(__file__).resolve().parent.parent.parent / ".env"
-
 
 class Settings(BaseSettings):
+    # Resolve .env relative to project root (two levels up from this file)
+    _PROJECT_ROOT = Path(__file__).resolve().parents[2]
+    _ENV_FILE = _PROJECT_ROOT / ".env"
     model_config = SettingsConfigDict(
-        env_file=str(_ENV_FILE),
-        env_file_encoding="utf-8",
+        env_file=str(_ENV_FILE) if _ENV_FILE.exists() else None,
         case_sensitive=False,
-        extra="ignore"
+        extra="ignore",
     )
 
     # ── App ──────────────────────────────────────────────────────────────────

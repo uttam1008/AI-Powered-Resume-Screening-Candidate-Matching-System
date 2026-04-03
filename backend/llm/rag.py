@@ -12,10 +12,8 @@ from dataclasses import dataclass
 from typing import List, Optional
 
 import structlog
-from pgvector.sqlalchemy import Vector
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy.orm import selectinload
 
 from core.config import settings
 from llm.gemini_client import gemini_client
@@ -84,7 +82,7 @@ class RagService:
             raise ValueError("Provide one of: job_role_id, query_text, or query_embedding")
 
         # ── 2. ANN search on resume_chunks using pgvector cosine distance ────
-        chunk_hits = await self._search_chunks(embedding, top_k_chunks)
+        chunk_hits = await self._search_chunks(embedding, top_k_chunks, job_role_id)
         if not chunk_hits:
             logger.info("rag.no_chunks_found")
             return []
@@ -145,14 +143,14 @@ class RagService:
         return None
 
     async def _search_chunks(
-        self, embedding: List[float], top_k: int
+        self, embedding: List[float], top_k: int, job_role_id: Optional[uuid.UUID] = None
     ) -> List[ChunkHit]:
         """
         Use pgvector's <=> (cosine distance) operator with SQLAlchemy .
         Requires: resume_chunks.embedding column is vector(768) with HNSW index.
         """
         # Build a Vector literal for the distance expression
-        from sqlalchemy import func, cast, literal
+        from sqlalchemy import cast
         from pgvector.sqlalchemy import Vector as PgVector
 
         embedding_literal = cast(embedding, PgVector(settings.EMBEDDING_DIMENSIONS))
@@ -169,9 +167,13 @@ class RagService:
                 distance_col,
             )
             .where(ResumeChunk.embedding.isnot(None))
-            .order_by(distance_col)
-            .limit(top_k)
         )
+
+        if job_role_id:
+            from models.resume import Resume
+            stmt = stmt.join(Resume, Resume.id == ResumeChunk.resume_id).where(Resume.job_role_id == job_role_id)
+
+        stmt = stmt.order_by(distance_col).limit(top_k)
 
         result = await self.db.execute(stmt)
         rows = result.all()

@@ -2,9 +2,8 @@
 api/v1/dependencies.py — FastAPI dependency injection factories.
 """
 import uuid
-from typing import AsyncGenerator
 
-from fastapi import Depends, status
+from fastapi import Depends
 from fastapi.security import OAuth2PasswordBearer
 from jose import jwt, JWTError
 from sqlalchemy import select

@@ -7,7 +7,7 @@ GET  /screening/result/{result_id} — Get a single match result
 """
 import uuid
 
-from fastapi import APIRouter, Depends, status
+from fastapi import APIRouter, Depends, status, HTTPException
 
 from api.v1.dependencies import get_screening_service, get_current_user
 from models.user import User
@@ -15,10 +15,6 @@ from schemas.screening import MatchResultResponse, ScreeningRunRequest, StatusOv
 from services.screening_service import ScreeningService
 
 router = APIRouter()
-
-
-from fastapi import APIRouter, Depends, status, HTTPException
-import logging
 
 @router.post(
     "/run/{job_role_id}",

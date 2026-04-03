@@ -18,9 +18,10 @@ router = APIRouter()
 async def list_resumes(
     page: int = 1,
     size: int = 20,
+    job_role_id: uuid.UUID = None,
     service: ResumeService = Depends(get_resume_service),
 ):
-    return await service.get_all(page, size)
+    return await service.get_all(page, size, job_role_id)
 
 
 @router.post(

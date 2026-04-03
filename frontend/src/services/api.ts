@@ -4,6 +4,7 @@
  */
 import axios, { type AxiosError } from 'axios'
 import type { ApiError } from '../types/index'
+import { useAuthStore } from '../store/authStore'
 
 export const apiClient = axios.create({
   baseURL: import.meta.env.VITE_API_BASE_URL ?? 'http://127.0.0.1:8000/api/v1',
@@ -32,6 +33,12 @@ apiClient.interceptors.request.use((config) => {
 apiClient.interceptors.response.use(
   (response) => response,
   (error: AxiosError<ApiError>) => {
+    if (error.response?.status === 401) {
+      useAuthStore.getState().logout()
+      if (window.location.pathname !== '/login' && window.location.pathname !== '/register') {
+        window.location.href = '/login'
+      }
+    }
     const message =
       error.response?.data?.detail ?? error.message ?? 'An unexpected error occurred'
     return Promise.reject(new Error(message))

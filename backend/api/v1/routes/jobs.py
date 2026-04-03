@@ -4,7 +4,6 @@ api/v1/routes/jobs.py — CRUD endpoints for Job Roles.
 import uuid
 
 from fastapi import APIRouter, Depends, status
-from sqlalchemy.ext.asyncio import AsyncSession
 
 from api.v1.dependencies import get_job_service, get_current_user
 from models.user import User
@@ -53,8 +52,12 @@ async def update_job(
     service: JobService = Depends(get_job_service),
     current_user: User = Depends(get_current_user),
 ):
-    # Depending on requirements, we could also check if current_user.id == job.created_by
-    return await service.update(job_id, payload)
+    try:
+        return await service.update(job_id, payload)
+    except Exception:
+        import traceback
+        traceback.print_exc()
+        raise
 
 
 @router.delete("/{job_id}", status_code=status.HTTP_204_NO_CONTENT, summary="Delete a job (Requires Auth)")
