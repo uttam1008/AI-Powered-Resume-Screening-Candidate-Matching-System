@@ -1,26 +1,4 @@
-version: "3.9"
-
 services:
-  # ─── PostgreSQL with pgvector ───────────────────────────────────────────────
-  db:
-    image: ankane/pgvector:latest
-    container_name: resume_screening_db
-    restart: unless-stopped
-    environment:
-      POSTGRES_USER: ${POSTGRES_USER:-postgres}
-      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-password}
-      POSTGRES_DB: ${POSTGRES_DB:-resume_screening}
-    ports:
-      - "5432:5432"
-    volumes:
-      - postgres_data:/var/lib/postgresql/data
-      - ./database/init.sql:/docker-entrypoint-initdb.d/init.sql
-    healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-postgres}"]
-      interval: 10s
-      timeout: 5s
-      retries: 5
-
   # ─── FastAPI Backend ─────────────────────────────────────────────────────────
   backend:
     build:
@@ -31,32 +9,40 @@ services:
     env_file:
       - .env
     environment:
-      POSTGRES_HOST: db
+      - TZ=Asia/Kolkata                           # IST (UTC+5:30)
     ports:
       - "8000:8000"
     volumes:
-      - ./backend:/app
-      - ./backend/uploads:/app/uploads
-    depends_on:
-      db:
-        condition: service_healthy
-    command: uvicorn main:app --host 0.0.0.0 --port 8000 --reload
+      - ./backend:/app                          # live-reload source
+      - ./backend/uploads:/app/uploads          # persist uploaded resumes locally
+      - ./backend/logger/logs:/app/logger/logs  # persist hourly log files locally
+    command: uvicorn main:app --host 0.0.0.0 --port 8000 --reload --reload-exclude "logger/*" --reload-exclude "uploads/*"
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8000/health')"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 20s
 
-  # ─── React Frontend ──────────────────────────────────────────────────────────
+  # ─── React / Vite Frontend ───────────────────────────────────────────────────
   frontend:
     build:
       context: ./frontend
       dockerfile: Dockerfile
     container_name: resume_screening_frontend
     restart: unless-stopped
+    environment:
+      - TZ=Asia/Kolkata                           # IST (UTC+5:30)
     ports:
       - "5173:5173"
     volumes:
-      - ./frontend:/app
-      - /app/node_modules
+      - ./frontend:/app                         # live-reload source
+      - node_modules_data:/app/node_modules     # isolated node_modules
     depends_on:
-      - backend
+      backend:
+        condition: service_healthy
     command: npm run dev -- --host
 
+# ─── Named volumes ────────────────────────────────────────────────────────────
 volumes:
-  postgres_data:
+  node_modules_data:

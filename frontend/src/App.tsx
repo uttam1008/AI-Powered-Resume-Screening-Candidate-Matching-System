@@ -1,3 +1,4 @@
+import { useState } from 'react'
 import { Routes, Route, Navigate } from 'react-router-dom'
 import { useAuthStore } from '@store/authStore'
 import Layout from '@components/layout/Layout'
@@ -8,9 +9,11 @@ import UploadPage from '@pages/UploadPage'
 import CandidatesPage from '@pages/CandidatesPage'
 import CandidateDetailPage from '@pages/CandidateDetailPage'
 import ScreeningPage from '@pages/ScreeningPage'
+import AnalyticsPage from '@pages/AnalyticsPage'
 import NotFoundPage from '@pages/NotFoundPage'
 import LoginPage from '@pages/auth/LoginPage'
 import RegisterPage from '@pages/auth/RegisterPage'
+import BootSplashScreen from '@components/layout/BootSplashScreen'
 
 function ProtectedRoute({ children }: { children: React.ReactNode }) {
   const isAuthenticated = useAuthStore((s) => s.isAuthenticated)
@@ -19,24 +22,40 @@ function ProtectedRoute({ children }: { children: React.ReactNode }) {
 }
 
 export default function App() {
-  return (
-    <Routes>
-      {/* Public Routes */}
-      <Route path="/login" element={<LoginPage />} />
-      <Route path="/register" element={<RegisterPage />} />
+  const [showSplash, setShowSplash] = useState(() => {
+    return !sessionStorage.getItem('hasBooted')
+  })
 
-      {/* Protected Routes */}
-      <Route path="/" element={<ProtectedRoute><Layout /></ProtectedRoute>}>
-        <Route index element={<Navigate to="/dashboard" replace />} />
-        <Route path="dashboard" element={<DashboardPage />} />
-        <Route path="jobs" element={<JobsPage />} />
-        <Route path="jobs/:jobId" element={<JobDetailPage />} />
-        <Route path="jobs/:jobId/screen" element={<ScreeningPage />} />
-        <Route path="upload" element={<UploadPage />} />
-        <Route path="candidates" element={<CandidatesPage />} />
-        <Route path="candidates/:candidateId" element={<CandidateDetailPage />} />
-        <Route path="*" element={<NotFoundPage />} />
-      </Route>
-    </Routes>
+  const handleSplashComplete = () => {
+    sessionStorage.setItem('hasBooted', 'true')
+    setShowSplash(false)
+  }
+
+  return (
+    <>
+      {showSplash && <BootSplashScreen onComplete={handleSplashComplete} />}
+      
+      {!showSplash && (
+        <Routes>
+          {/* Public Routes */}
+          <Route path="/login" element={<LoginPage />} />
+          <Route path="/register" element={<RegisterPage />} />
+
+          {/* Protected Routes */}
+          <Route path="/" element={<ProtectedRoute><Layout /></ProtectedRoute>}>
+            <Route index element={<Navigate to="/dashboard" replace />} />
+            <Route path="dashboard" element={<DashboardPage />} />
+            <Route path="jobs" element={<JobsPage />} />
+            <Route path="jobs/:jobId" element={<JobDetailPage />} />
+            <Route path="jobs/:jobId/screen" element={<ScreeningPage />} />
+            <Route path="upload" element={<UploadPage />} />
+            <Route path="candidates" element={<CandidatesPage />} />
+            <Route path="candidates/:candidateId" element={<CandidateDetailPage />} />
+            <Route path="analytics" element={<AnalyticsPage />} />
+            <Route path="*" element={<NotFoundPage />} />
+          </Route>
+        </Routes>
+      )}
+    </>
   )
 }

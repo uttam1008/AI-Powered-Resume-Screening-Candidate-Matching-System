@@ -15,10 +15,7 @@ CREATE EXTENSION IF NOT EXISTS "uuid-ossp"; -- uuid_generate_v4() fallback
 
 -- ── ENUM types ───────────────────────────────────────────────────────────────
 DO $$ BEGIN
-    CREATE TYPE job_status    AS ENUM ('draft', 'open', 'closed', 'archived');
-EXCEPTION WHEN duplicate_object THEN NULL; END $$;
-
-    CREATE TYPE job_status    AS ENUM ('draft', 'open', 'closed', 'archived');
+    CREATE TYPE job_status AS ENUM ('draft', 'open', 'closed', 'archived');
 EXCEPTION WHEN duplicate_object THEN NULL; END $$;
 
 -- ================================================================

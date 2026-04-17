@@ -2,7 +2,7 @@ import { useState } from 'react'
 import { Link } from 'react-router-dom'
 import { useQuery, useQueryClient, useMutation } from '@tanstack/react-query'
 import { formatDistanceToNow } from 'date-fns'
-import { Briefcase, MapPin, Building, Loader2, PlusCircle, Sparkles, Clock, Users } from 'lucide-react'
+import { Briefcase, MapPin, Building, Loader2, PlusCircle, Sparkles, Clock, Users, Trash2 } from 'lucide-react'
 import { toast } from 'react-hot-toast'
 import { clsx } from 'clsx'
 import { jobService, type JobRole } from '../services/jobs'
@@ -17,6 +17,7 @@ const STATUS_STYLES: Record<string, string> = {
 
 export default function JobsPage() {
   const [isModalOpen, setIsModalOpen] = useState(false)
+  const [confirmDeleteJobId, setConfirmDeleteJobId] = useState<string | null>(null)
   const queryClient = useQueryClient()
 
   const { data: jobs, isLoading, isError } = useQuery({
@@ -39,6 +40,19 @@ export default function JobsPage() {
   const handleSuccess = () => {
     queryClient.invalidateQueries({ queryKey: ['jobs'] })
   }
+
+  const deleteJobMutation = useMutation({
+    mutationFn: (id: string) => jobService.deleteJob(id),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['jobs'] })
+      toast.success('Job role deleted successfully.')
+      setConfirmDeleteJobId(null)
+    },
+    onError: () => {
+      toast.error('Failed to delete job role. Try again.')
+      setConfirmDeleteJobId(null)
+    },
+  })
 
   return (
     <div className="space-y-6 animate-slide-up pb-10">
@@ -161,6 +175,13 @@ export default function JobsPage() {
                   >
                     View Details
                   </Link>
+                  <button
+                    onClick={() => setConfirmDeleteJobId(job.id)}
+                    title="Delete Job Role"
+                    className="p-1.5 text-red-400 hover:bg-red-900/30 rounded-lg transition-colors border border-red-800/20"
+                  >
+                    <Trash2 size={14} />
+                  </button>
                 </div>
               </div>
             </div>
@@ -173,6 +194,40 @@ export default function JobsPage() {
         onClose={() => setIsModalOpen(false)}
         onSuccess={handleSuccess}
       />
+
+      {/* Delete Job Confirmation Dialog */}
+      {confirmDeleteJobId && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm animate-fade-in">
+          <div className="bg-surface border border-surface-200 rounded-2xl w-full max-w-sm shadow-2xl p-6 flex flex-col gap-5">
+            <div className="flex items-center gap-3">
+              <div className="w-11 h-11 rounded-full bg-red-900/30 border border-red-800/40 flex items-center justify-center text-red-400 shrink-0">
+                <Trash2 size={20} />
+              </div>
+              <div>
+                <h3 className="text-base font-bold text-white">Delete Job Role?</h3>
+                <p className="text-sm text-surface-300 mt-0.5">This will permanently delete the job role and all its screening results. Uploaded resumes will be unlinked but not deleted.</p>
+              </div>
+            </div>
+            <div className="flex gap-3 justify-end">
+              <button
+                onClick={() => setConfirmDeleteJobId(null)}
+                className="btn-secondary px-4 py-2 text-sm"
+                disabled={deleteJobMutation.isPending}
+              >
+                Cancel
+              </button>
+              <button
+                onClick={() => deleteJobMutation.mutate(confirmDeleteJobId)}
+                disabled={deleteJobMutation.isPending}
+                className="px-4 py-2 text-sm font-semibold bg-red-600 hover:bg-red-500 text-white rounded-xl transition-all flex items-center gap-2 shadow-md shadow-red-900/30"
+              >
+                <Trash2 size={14} />
+                {deleteJobMutation.isPending ? 'Deleting...' : 'Yes, Delete'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   )
 }

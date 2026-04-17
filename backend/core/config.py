@@ -5,6 +5,7 @@ All values are read from environment variables / .env file.
 from functools import lru_cache
 from pathlib import Path
 from typing import List
+from urllib.parse import quote_plus
 
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
@@ -29,10 +30,12 @@ class Settings(BaseSettings):
 
     # ── CORS ─────────────────────────────────────────────────────────────────
     CORS_ORIGINS: List[str] = [
-        "http://localhost:5173", 
-        "http://127.0.0.1:5173", 
+        "http://localhost:5173",
+        "http://127.0.0.1:5173",
+        "http://localhost:5174",
+        "http://127.0.0.1:5174",
         "http://localhost:3000",
-        "http://127.0.0.1:3000"
+        "http://127.0.0.1:3000",
     ]
 
     # ── PostgreSQL ────────────────────────────────────────────────────────────
@@ -41,12 +44,20 @@ class Settings(BaseSettings):
     POSTGRES_HOST: str = "localhost"
     POSTGRES_PORT: int = 5432
     POSTGRES_DB: str = "resume_ai"
+    
+    # Optional direct Database URL which is easier for Supabase
+    DATABASE_URL_OVERRIDE: str | None = None
 
     @property
     def DATABASE_URL(self) -> str:
+        if self.DATABASE_URL_OVERRIDE:
+            return self.DATABASE_URL_OVERRIDE
+            
+        password = quote_plus(self.POSTGRES_PASSWORD)  # encodes # % @ etc.
         return (
-            f"postgresql+asyncpg://{self.POSTGRES_USER}:{self.POSTGRES_PASSWORD}"
+            f"postgresql+asyncpg://{self.POSTGRES_USER}:{password}"
             f"@{self.POSTGRES_HOST}:{self.POSTGRES_PORT}/{self.POSTGRES_DB}"
+            f"?ssl=require"
         )
 
     # ── Gemini ────────────────────────────────────────────────────────────────
@@ -56,6 +67,7 @@ class Settings(BaseSettings):
 
     # ── File Upload ───────────────────────────────────────────────────────────
     UPLOAD_DIR: str = "uploads"
+    ORGANIZED_RESUMES_DIR: str = "organized_resumes"
     MAX_FILE_SIZE_MB: int = 10
     ALLOWED_EXTENSIONS: List[str] = ["pdf", "docx"]
 

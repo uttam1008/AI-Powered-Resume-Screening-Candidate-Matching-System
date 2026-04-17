@@ -22,6 +22,9 @@ class ResumeResponse(BaseModel):
     experience_years: int
     education: Optional[str]
     created_at: datetime
+    # Analytics / Screening summary fields
+    ats_score: Optional[float] = None
+    match_status: Optional[str] = None
 
     model_config = {"from_attributes": True}
 

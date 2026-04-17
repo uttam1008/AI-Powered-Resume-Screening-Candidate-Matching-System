@@ -1,0 +1,26 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100">
+  <defs>
+    <linearGradient id="symGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#4F46E5" />
+      <stop offset="100%" stop-color="#2563EB" />
+    </linearGradient>
+  </defs>
+  
+  <rect width="100" height="100" rx="20" fill="url(#symGrad)" />
+  
+  <!-- Document Shape -->
+  <path d="M30 20 L55 20 L75 40 L75 80 C75 82 73 84 71 84 L29 84 C27 84 25 82 25 80 L25 24 C25 22 27 20 30 20 Z" fill="none" stroke="#FFFFFF" stroke-width="6" stroke-linejoin="round" />
+  
+  <!-- Folded Corner -->
+  <path d="M55 20 L55 40 L75 40" fill="none" stroke="#FFFFFF" stroke-width="6" stroke-linejoin="round" />
+  
+  <!-- Content Lines -->
+  <line x1="36" y1="52" x2="64" y2="52" stroke="#FFFFFF" stroke-width="6" stroke-linecap="round" />
+  <line x1="36" y1="66" x2="54" y2="66" stroke="#FFFFFF" stroke-width="6" stroke-linecap="round" />
+
+  <!-- Magic Spark 1 (Main) -->
+  <path d="M65 25 Q 70 25 70 20 Q 70 25 75 25 Q 70 25 70 30 Q 70 25 65 25 Z" fill="#60A5FA" />
+  
+  <!-- Magic Spark 2 -->
+  <path d="M30 35 Q 33 35 33 32 Q 33 35 36 35 Q 33 35 33 38 Q 33 35 30 35 Z" fill="#93C5FD" />
+</svg>

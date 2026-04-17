@@ -9,6 +9,7 @@ export interface JobRole {
   requirements: string
   experience_min: number
   experience_max?: number
+  hiring_threshold: number
   status: 'draft' | 'open' | 'closed' | 'archived'
   created_at: string
   resume_count: number
@@ -16,12 +17,13 @@ export interface JobRole {
 
 export interface JobRoleCreate {
   title: string
-  department?: string
+  department: string
   location?: string
   description: string
   requirements: string
   experience_min?: number
   experience_max?: number
+  hiring_threshold?: number
 }
 
 import { PaginatedResponse } from '../types'

@@ -8,7 +8,7 @@ from pathlib import Path
 
 import structlog
 from fastapi import UploadFile
-from sqlalchemy import select, func
+from sqlalchemy import select, func, String
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from core.config import settings
@@ -30,21 +30,59 @@ class ResumeService:
         os.makedirs(settings.UPLOAD_DIR, exist_ok=True)
 
     async def get_all(self, page: int = 1, size: int = 20, job_role_id: uuid.UUID | None = None) -> dict:
+        from models.match_result import MatchResult
+        from sqlalchemy import select, func, desc
+
         offset = (page - 1) * size
         
+        # Base count statement
         count_stmt = select(func.count(Resume.id))
-        stmt = select(Resume).order_by(Resume.created_at.desc()).offset(offset).limit(size)
         
+        # Query for Resumes
+        # We perform a Left Outer Join with MatchResult to get scores if they exist
         if job_role_id:
+            # If job_role_id is filtered, we want the score for THAT specific job
+            stmt = (
+                select(Resume, MatchResult.match_score, MatchResult.status)
+                .outerjoin(MatchResult, (MatchResult.resume_id == Resume.id) & (MatchResult.job_role_id == job_role_id))
+                .where(Resume.job_role_id == job_role_id)
+                .order_by(Resume.created_at.desc())
+                .offset(offset)
+                .limit(size)
+            )
             count_stmt = count_stmt.where(Resume.job_role_id == job_role_id)
-            stmt = stmt.where(Resume.job_role_id == job_role_id)
+        else:
+            # Global view: We want the BEST (Max) ATS score achieved across any job
+            # Subquery to get max score per resume
+            subq = (
+                select(MatchResult.resume_id, func.max(MatchResult.match_score).label("max_score"))
+                .group_by(MatchResult.resume_id)
+                .subquery()
+            )
+            stmt = (
+                select(Resume, subq.c.max_score, func.cast(None, String).label("status"))
+                .outerjoin(subq, subq.c.resume_id == Resume.id)
+                .order_by(Resume.created_at.desc())
+                .offset(offset)
+                .limit(size)
+            )
 
         total_q = await self.db.execute(count_stmt)
         total = total_q.scalar_one()
 
         result = await self.db.execute(stmt)
+        rows = result.all()
+        
+        items = []
+        for row in rows:
+            res = row.Resume
+            # Map join results to the resume object for schema serialization
+            res.ats_score = float(row[1]) if row[1] is not None else None
+            res.match_status = row[2] if len(row) > 2 else None
+            items.append(res)
+
         return {
-            "items": result.scalars().all(),
+            "items": items,
             "total": total,
             "page": page,
             "size": size,
@@ -160,3 +198,10 @@ class ResumeService:
         
         logger.info("resume.uploaded_and_processed", resume_id=str(resume.id))
         return resume
+
+    async def delete(self, resume_id: uuid.UUID) -> None:
+        """Delete a resume record (cascade deletes chunks via FK)."""
+        resume = await self.get_by_id(resume_id)
+        await self.db.delete(resume)
+        await self.db.commit()
+        logger.info("resume.deleted", resume_id=str(resume_id))

@@ -19,6 +19,7 @@ export default function CreateJobModal({ isOpen, onClose, onSuccess }: Props) {
     requirements: '',
     experience_min: 0,
     experience_max: 5,
+    hiring_threshold: 75,
   })
 
   if (!isOpen) return null
@@ -78,8 +79,9 @@ export default function CreateJobModal({ isOpen, onClose, onSuccess }: Props) {
 
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-5">
               <div>
-                <label className="label">Department</label>
+                <label className="label">Department *</label>
                 <input
+                  required
                   name="department"
                   className="input"
                   placeholder="e.g. Engineering"
@@ -147,6 +149,27 @@ export default function CreateJobModal({ isOpen, onClose, onSuccess }: Props) {
                   value={formData.experience_max}
                   onChange={handleChange}
                 />
+              </div>
+            </div>
+
+            <div className="pt-2 border-t border-surface-200 mt-2">
+              <div className="flex items-center justify-between mb-1">
+                <label className="label !mb-0">AI Hiring Threshold: {formData.hiring_threshold}%</label>
+              </div>
+              <p className="text-xs text-surface-400 mb-3">Candidates scoring this or higher will be automatically marked as 'Hire'.</p>
+              <input
+                type="range"
+                name="hiring_threshold"
+                min="0"
+                max="100"
+                step="1"
+                className="w-full accent-primary-500 h-2 bg-surface-200 rounded-lg appearance-none cursor-pointer"
+                value={formData.hiring_threshold}
+                onChange={handleChange}
+              />
+              <div className="flex justify-between text-xs text-surface-400 mt-2">
+                <span>0% (Lenient)</span>
+                <span>100% (Strict)</span>
               </div>
             </div>
           </form>

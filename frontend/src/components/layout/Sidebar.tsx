@@ -1,12 +1,13 @@
 import { NavLink } from 'react-router-dom'
-import { LayoutDashboard, Briefcase, Upload, Users } from 'lucide-react'
+import { LayoutDashboard, Briefcase, Upload, Users, BarChart2 } from 'lucide-react'
 import { clsx } from 'clsx'
 
 const navItems = [
   { to: '/dashboard', label: 'Dashboard',  icon: LayoutDashboard },
   { to: '/jobs',      label: 'Jobs',       icon: Briefcase },
   { to: '/upload',    label: 'Upload',     icon: Upload },
-  { to: '/candidates',label: 'Candidates', icon: Users },
+  { to: '/candidates',label: 'Talent Vault', icon: Users },
+  { to: '/analytics', label: 'Analytics',  icon: BarChart2 },
 ]
 
 export default function Sidebar() {

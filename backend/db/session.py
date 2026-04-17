@@ -16,9 +16,13 @@ from core.config import settings
 engine = create_async_engine(
     settings.DATABASE_URL,
     echo=settings.DEBUG,
-    pool_pre_ping=True,
+    pool_pre_ping=False,   # Disabled: Supabase pgBouncer (transaction mode) handles liveness
     pool_size=10,
     max_overflow=20,
+    connect_args={
+        "statement_cache_size": 0,
+        "prepared_statement_cache_size": 0,
+    },
 )
 
 # ── Session factory ────────────────────────────────────────────────────────────
@@ -38,13 +42,29 @@ class Base(DeclarativeBase):
 
 # ── DB init (called on startup) ────────────────────────────────────────────────
 async def init_db() -> None:
-    """Create pgvector extension and all tables."""
+    """
+    Create pgvector extension and all tables if they don't exist.
+    Gracefully tolerates Supabase/pgBouncer transaction-mode pooling.
+    """
+    import models  # noqa: F401 — populate Base.metadata
+
     async with engine.begin() as conn:
-        from sqlalchemy import text
-        await conn.execute(text("CREATE EXTENSION IF NOT EXISTS vector"))
-        # Import all models so Base.metadata is populated
-        import models  # noqa: F401
-        await conn.run_sync(Base.metadata.create_all)
+        try:
+            from sqlalchemy import text
+            await conn.execute(text("CREATE EXTENSION IF NOT EXISTS vector"))
+        except Exception:
+            # Extension may already exist or require superuser; safe to ignore
+            pass
+
+        try:
+            await conn.run_sync(Base.metadata.create_all)
+        except Exception as e:
+            err_str = str(e)
+            if "DuplicatePreparedStatement" in err_str or "already exists" in err_str:
+                # Tables already exist in Supabase — nothing to do
+                pass
+            else:
+                raise
 
 
 # ── Dependency ─────────────────────────────────────────────────────────────────

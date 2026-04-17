@@ -12,6 +12,10 @@ Pipeline steps:
 import asyncio
 import json
 import uuid
+import os
+import shutil
+import re
+from pathlib import Path
 from typing import Optional
 
 import structlog
@@ -20,6 +24,7 @@ from sqlalchemy.orm import joinedload
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from core.exceptions import NotFoundException
+from core.config import settings
 from llm.gemini_client import gemini_client
 from llm.prompts import SCREENING_PROMPT
 from llm.rag import RagService
@@ -100,7 +105,7 @@ class ScreeningService:
                 continue
             
             # ── Step 5: Upsert MatchResult ────────────────────────────────────
-            mr = await self._upsert_match_result(job.id, resume.id, parsed, raw_response)
+            mr = await self._upsert_match_result(job, resume.id, parsed, raw_response)
             results.append((mr, resume))
             
         if last_error and not results:
@@ -114,6 +119,9 @@ class ScreeningService:
             await self.db.refresh(mr)
             mr.resume = resume
             final_results.append(mr)
+            
+            # Organize file
+            self._organize_resume_file(mr, resume, job)
 
         logger.info("screening.complete", results_count=len(final_results))
 
@@ -135,7 +143,7 @@ class ScreeningService:
     async def get_by_id(self, result_id: uuid.UUID) -> MatchResult:
         result = await self.db.execute(
             select(MatchResult)
-            .options(joinedload(MatchResult.resume))
+            .options(joinedload(MatchResult.resume), joinedload(MatchResult.job_role))
             .where(MatchResult.id == result_id)
         )
         mr = result.scalar_one_or_none()
@@ -149,9 +157,51 @@ class ScreeningService:
         mr.status = new_status
         await self.db.flush()
         logger.info("screening.status_updated", result_id=str(result_id), new_status=new_status)
+        
+        # Trigger file reorganization with new status
+        if mr.resume and mr.job_role:
+            self._organize_resume_file(mr, mr.resume, mr.job_role)
+            
         return mr
 
     # ── Private Helpers ───────────────────────────────────────────────────────
+
+    def _organize_resume_file(self, mr: MatchResult, resume: Resume, job: JobRole):
+        """Copies and renames resumes into job_role specific folders."""
+        try:
+            source_path = os.path.join(settings.UPLOAD_DIR, resume.file_name)
+            if not os.path.exists(source_path):
+                logger.warning("screening.organize.missing_source", path=source_path)
+                return
+
+            safe_job_title = re.sub(r'[^a-zA-Z0-9_\- ]', '', job.title).strip()
+            # Ensure ROOT/organized_resumes exists explicitly because it relies on base settings
+            os.makedirs(settings.ORGANIZED_RESUMES_DIR, exist_ok=True)
+            job_dir = os.path.join(settings.ORGANIZED_RESUMES_DIR, safe_job_title)
+            os.makedirs(job_dir, exist_ok=True)
+
+            safe_name = re.sub(r'[^a-zA-Z0-9_\- ]', '', resume.candidate_name).strip()
+            safe_name = safe_name.replace(" ", "_").lower()
+            safe_job_folder = safe_job_title.replace(" ", "_").lower()
+            ext = Path(resume.file_name).suffix.lower()
+
+            dest_filename = f"{safe_name}_{safe_job_folder}_{mr.status}{ext}"
+            dest_path = os.path.join(job_dir, dest_filename)
+
+            # Cleanup older status files for this exact candidate & role
+            prefix = f"{safe_name}_{safe_job_folder}_"
+            for existing_file in os.listdir(job_dir):
+                if existing_file.startswith(prefix) and existing_file != dest_filename:
+                    old_path = os.path.join(job_dir, existing_file)
+                    try:
+                        os.remove(old_path)
+                    except Exception:
+                        pass
+
+            shutil.copy2(source_path, dest_path)
+            logger.info("screening.organize.success", dest=dest_path)
+        except Exception as e:
+            logger.error("screening.organize.failed", error=str(e))
 
     async def _get_job_role(self, job_role_id: uuid.UUID) -> JobRole:
         result = await self.db.execute(
@@ -175,7 +225,7 @@ class ScreeningService:
 
     async def _upsert_match_result(
         self,
-        job_role_id: uuid.UUID,
+        job_role: JobRole,
         resume_id: uuid.UUID,
         parsed: dict,
         raw_response: str,
@@ -187,11 +237,11 @@ class ScreeningService:
         missing_skills = parsed.get("missing_skills") or parsed.get("weaknesses", [])
         
         # Auto-decision engine
-        decision_status = "hire" if score >= 75 else "reject"
+        decision_status = "hire" if score >= job_role.hiring_threshold else "reject"
 
         existing_q = await self.db.execute(
             select(MatchResult).where(
-                MatchResult.job_role_id == job_role_id,
+                MatchResult.job_role_id == job_role.id,
                 MatchResult.resume_id == resume_id,
             )
         )
@@ -207,7 +257,7 @@ class ScreeningService:
             return existing
 
         mr = MatchResult(
-            job_role_id=job_role_id,
+            job_role_id=job_role.id,
             resume_id=resume_id,
             match_score=score,
             gemini_summary=explanation,

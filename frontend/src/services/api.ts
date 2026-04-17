@@ -39,8 +39,21 @@ apiClient.interceptors.response.use(
         window.location.href = '/login'
       }
     }
-    const message =
-      error.response?.data?.detail ?? error.message ?? 'An unexpected error occurred'
+    const detail = error.response?.data?.detail
+    let message: string
+    if (Array.isArray(detail)) {
+      // FastAPI validation errors: [{loc, msg, type}, ...]
+      message = detail
+        .map((d: any) => {
+          const field = Array.isArray(d.loc) ? d.loc.join(' → ') : ''
+          return field ? `${field}: ${d.msg}` : d.msg
+        })
+        .join('\n')
+    } else if (typeof detail === 'string') {
+      message = detail
+    } else {
+      message = error.message ?? 'An unexpected error occurred'
+    }
     return Promise.reject(new Error(message))
   },
 )

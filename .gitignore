@@ -24,6 +24,9 @@ build/
 # FastAPI / Uvicorn
 *.log
 
+# Hourly log files (auto-generated; directory kept via .gitkeep)
+backend/logger/logs/**/*.log
+
 # Alembic
 alembic/versions/*.pyc
 

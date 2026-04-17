@@ -5,10 +5,16 @@ Replaces the old candidates.py endpoints.
 import uuid
 
 from fastapi import APIRouter, Depends, File, Form, UploadFile, status
+from fastapi.responses import FileResponse
+from sqlalchemy import select
+from sqlalchemy.ext.asyncio import AsyncSession
 
 from api.v1.dependencies import get_resume_service
+from db.session import get_db
+from models.match_result import MatchResult
+from models.job_role import JobRole
 from schemas.resume import ResumeResponse, ResumeUploadResponse
-from schemas.screening import PaginatedResponse
+from schemas.screening import PaginatedResponse, MatchResultResponse
 from services.resume_service import ResumeService
 
 router = APIRouter()
@@ -66,3 +72,62 @@ async def get_resume(
     service: ResumeService = Depends(get_resume_service),
 ):
     return await service.get_by_id(resume_id)
+
+
+@router.get("/{resume_id}/file", summary="View or download the resume file")
+async def get_resume_file(
+    resume_id: uuid.UUID,
+    service: ResumeService = Depends(get_resume_service),
+):
+    import os
+    from core.exceptions import NotFoundException
+    resume = await service.get_by_id(resume_id)
+    if not resume.file_url or not os.path.exists(resume.file_url):
+        raise NotFoundException("Resume file not found on server.")
+    
+    media_type = "application/pdf" if resume.file_type.lower() == "pdf" else "application/vnd.openxmlformats-officedocument.wordprocessingml.document"
+    return FileResponse(resume.file_url, media_type=media_type, headers={"Content-Disposition": f'inline; filename="{resume.file_name}"'})
+
+
+@router.get("/{resume_id}/match-results", summary="Get all ATS match results for a candidate")
+async def get_resume_match_results(
+    resume_id: uuid.UUID,
+    db: AsyncSession = Depends(get_db),
+):
+    """Returns all match results (ATS scores) for a given resume across all job roles."""
+    result = await db.execute(
+        select(MatchResult, JobRole.title.label("job_title"))
+        .join(JobRole, MatchResult.job_role_id == JobRole.id)
+        .where(MatchResult.resume_id == resume_id)
+        .order_by(MatchResult.match_score.desc())
+    )
+    rows = result.all()
+    return [
+        {
+            "id": str(row.MatchResult.id),
+            "job_role_id": str(row.MatchResult.job_role_id),
+            "job_title": row.job_title,
+            "match_score": float(row.MatchResult.match_score),
+            "status": row.MatchResult.status,
+            "explanation": row.MatchResult.gemini_summary,
+            "matched_skills": row.MatchResult.strengths or [],
+            "missing_skills": row.MatchResult.weaknesses or [],
+            "created_at": row.MatchResult.created_at.isoformat(),
+        }
+        for row in rows
+    ]
+
+
+@router.delete("/{resume_id}", status_code=status.HTTP_204_NO_CONTENT, summary="Delete a resume")
+async def delete_resume(
+    resume_id: uuid.UUID,
+    service: ResumeService = Depends(get_resume_service),
+):
+    """Deletes the resume record from DB and removes the file from disk."""
+    import os
+    resume = await service.get_by_id(resume_id)
+    # Delete physical file if it exists
+    if resume.file_url and os.path.exists(resume.file_url):
+        os.remove(resume.file_url)
+    await service.delete(resume_id)
+

@@ -12,8 +12,8 @@ RUN pip install --no-cache-dir -r requirements.txt
 
 COPY . .
 
-# Create uploads directory
-RUN mkdir -p uploads
+# Pre-create runtime directories so they exist even before volumes are mounted
+RUN mkdir -p uploads logger/logs
 
 EXPOSE 8000
 

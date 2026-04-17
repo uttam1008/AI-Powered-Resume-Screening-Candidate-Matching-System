@@ -9,9 +9,14 @@ export interface Resume {
   skills: string[]
   experience_years: number
   education?: string
+  file_type: string
+  raw_text?: string
+
   file_name: string
   file_url: string
   created_at: string
+  ats_score?: number
+  match_status?: string
 }
 
 export interface UploadResponse {
@@ -50,5 +55,9 @@ export const resumeService = {
       timeout: 120_000, 
     })
     return data
-  }
+  },
+
+  async deleteResume(id: string): Promise<void> {
+    await apiClient.delete(`/resumes/${id}`)
+  },
 }

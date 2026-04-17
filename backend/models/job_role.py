@@ -31,6 +31,7 @@ class JobRole(Base):
     requirements: Mapped[str] = mapped_column(Text, nullable=False)
     experience_min: Mapped[int] = mapped_column(SmallInteger, default=0, nullable=False)
     experience_max: Mapped[Optional[int]] = mapped_column(SmallInteger)
+    hiring_threshold: Mapped[int] = mapped_column(SmallInteger, default=75, nullable=False)
     status: Mapped[str] = mapped_column(
         Enum("draft", "open", "closed", "archived", name="job_status"),
         default="open",

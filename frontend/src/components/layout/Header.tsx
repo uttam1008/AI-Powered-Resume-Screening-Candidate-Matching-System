@@ -1,8 +1,10 @@
 import { useState, useRef, useEffect } from 'react'
-import { LogOut, User, ChevronDown } from 'lucide-react'
+import { LogOut, ChevronDown, LineChart, FileText, Target, Users } from 'lucide-react'
+import { useQuery } from '@tanstack/react-query'
 import { useAuthStore } from '../../store/authStore'
 import { authService } from '../../services/auth'
-import { useNavigate } from 'react-router-dom'
+import { analyticsService } from '../../services/analytics'
+import { useNavigate, Link } from 'react-router-dom'
 
 /**
  * Header — top bar with page title area and user avatar/logout.
@@ -30,14 +32,27 @@ export default function Header() {
     navigate('/login')
   }
 
+  const { data: userStats, isLoading: loadingStats } = useQuery({
+    queryKey: ['user-stats'],
+    queryFn: () => analyticsService.getUserStats(),
+    enabled: showDropdown
+  })
+
   return (
     <>
       <header className="h-16 bg-surface-100 border-b border-surface-200 px-6 flex items-center justify-between shrink-0">
         <div className="text-sm text-surface-300 font-medium">
           AI Resume Screening System
         </div>
-        
-        {/* User Menu */}
+        <div className="flex items-center gap-4">
+          <Link 
+            to="/candidates"
+            className="hidden sm:flex items-center gap-2 px-4 py-1.5 rounded-full bg-primary-600/10 text-primary-400 hover:bg-primary-600/20 text-sm font-semibold transition-colors border border-primary-500/20 shadow-sm"
+          >
+            <Users size={16} /> Global Talent Vault
+          </Link>
+          
+          {/* User Menu */}
         <div className="relative" ref={dropdownRef}>
           <button
             onClick={() => setShowDropdown((prev) => !prev)}
@@ -55,37 +70,77 @@ export default function Header() {
 
           {/* Dropdown */}
           {showDropdown && (
-            <div className="absolute right-0 top-full mt-2 w-56 bg-surface border border-surface-200 rounded-2xl shadow-2xl z-50 overflow-hidden animate-fade-in">
-              {/* User Info */}
-              <div className="p-4 border-b border-surface-200 bg-surface-100">
-                <div className="flex items-center gap-3">
-                  <div className="w-10 h-10 rounded-full bg-primary-600 flex items-center justify-center text-sm font-bold text-white shrink-0">
-                    {user ? user.name.charAt(0).toUpperCase() : 'HR'}
+            <div className="absolute right-0 top-full mt-2 w-[340px] bg-surface-200/50 p-2 border border-surface-200 rounded-[28px] shadow-2xl z-50 overflow-hidden animate-fade-in backdrop-blur-xl">
+              
+              {/* Google-like Profile Card Inner */}
+              <div className="bg-surface rounded-t-[20px] rounded-b-[4px] p-6 flex flex-col items-center text-center relative border border-surface-200/50">
+                 {/* Email at the top */}
+                 <p className="text-xs text-surface-300 font-medium tracking-wide mb-4">{user?.email}</p>
+                 
+                 {/* Big Avatar */}
+                 <div className="w-20 h-20 rounded-full bg-primary-600 flex items-center justify-center text-3xl font-bold text-white shadow-lg ring-4 ring-surface-100 mb-3 shrink-0">
+                   {user ? user.name.charAt(0).toUpperCase() : 'HR'}
+                 </div>
+                 
+                 {/* Greeting */}
+                 <h2 className="text-[22px] text-white font-medium mb-6">Hi, {user?.name?.split(' ')[0]}!</h2>
+
+                 {/* Manage Account Pill */}
+                 <button 
+                   onClick={() => setShowDropdown(false)}
+                   className="px-6 py-2 rounded-full border border-surface-300 text-surface-50 font-medium text-sm hover:bg-surface-200 hover:text-white transition-colors"
+                 >
+                   Manage your account
+                 </button>
+              </div>
+
+              {/* Enhanced Insights Panel */}
+              <div className="bg-surface rounded-[4px] mt-[2px] p-4 border border-surface-200/50 flex flex-col gap-3">
+                <div className="flex items-center gap-2 mb-1">
+                  <LineChart size={16} className="text-primary-400" />
+                  <span className="text-xs font-bold uppercase tracking-widest text-surface-400">HR Quick Insights</span>
+                </div>
+                
+                <div className="grid grid-cols-2 gap-2 text-left">
+                  <div className="bg-surface-100 p-2.5 rounded-xl border border-surface-200">
+                    <div className="text-[10px] text-surface-400 font-medium mb-1 flex items-center gap-1">
+                      <FileText size={10} /> Evaluated
+                    </div>
+                    <div className="text-lg font-bold text-white">
+                      {loadingStats ? '...' : userStats?.total_evaluated || 0}
+                    </div>
                   </div>
-                  <div className="min-w-0">
-                    <p className="text-sm font-semibold text-white truncate">{user?.name}</p>
-                    <p className="text-xs text-surface-400 truncate">{user?.email}</p>
+                  
+                  <div className="bg-surface-100 p-2.5 rounded-xl border border-surface-200">
+                    <div className="text-[10px] text-surface-400 font-medium mb-1 flex items-center gap-1">
+                      <Target size={10} /> Avg Hired Match
+                    </div>
+                    <div className="text-lg font-bold text-green-400">
+                      {loadingStats ? '...' : `${userStats?.accuracy || 0}%`}
+                    </div>
+                  </div>
+
+                  <div className="col-span-2 bg-surface-100 p-2.5 rounded-xl border border-surface-200 flex items-center justify-between">
+                    <span className="text-xs text-surface-400">Top Hiring Skill</span>
+                    <span className="text-xs font-bold text-primary-300 px-2 py-1 bg-primary-900/30 rounded border border-primary-800/50">
+                      {loadingStats ? '...' : userStats?.top_skill || 'N/A'}
+                    </span>
                   </div>
                 </div>
               </div>
 
-              {/* Menu Items */}
-              <div className="p-2">
-                <button
-                  className="w-full flex items-center gap-2.5 px-3 py-2.5 text-sm text-surface-300 hover:text-white hover:bg-surface-200 rounded-xl transition-colors"
-                  onClick={() => setShowDropdown(false)}
-                >
-                  <User size={15} /> Profile
-                </button>
+              {/* Sign Out Section below it */}
+              <div className="bg-surface rounded-b-[20px] rounded-t-[4px] mt-[2px] overflow-hidden border border-surface-200/50">
                 <button
                   onClick={() => { setShowDropdown(false); setShowLogoutModal(true) }}
-                  className="w-full flex items-center gap-2.5 px-3 py-2.5 text-sm text-red-400 hover:bg-red-500/10 rounded-xl transition-colors mt-0.5"
+                  className="w-full flex items-center justify-center gap-2.5 px-3 py-4 text-sm font-medium text-surface-300 hover:text-white hover:bg-surface-200 transition-colors"
                 >
-                  <LogOut size={15} /> Sign Out
+                  <LogOut size={18} /> Sign out
                 </button>
               </div>
             </div>
           )}
+        </div>
         </div>
       </header>
 

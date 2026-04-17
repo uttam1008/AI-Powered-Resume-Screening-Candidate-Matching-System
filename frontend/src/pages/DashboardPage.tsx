@@ -4,7 +4,10 @@ import { Link } from 'react-router-dom'
 import { useQuery } from '@tanstack/react-query'
 import { formatDistanceToNow } from 'date-fns'
 import { jobService } from '../services/jobs'
+import { analyticsService } from '../services/analytics'
 import CreateJobModal from '../components/jobs/CreateJobModal'
+
+const FUNNEL_COLORS = ['#6366f1', '#8b5cf6', '#a78bfa', '#c4b5fd']
 
 export default function DashboardPage() {
   const [isCreateModalOpen, setIsCreateModalOpen] = useState(false)
@@ -14,9 +17,22 @@ export default function DashboardPage() {
     queryFn: () => jobService.getJobs(),
   })
 
+  const { data: overview, isLoading: analyticsLoading } = useQuery({
+    queryKey: ['analytics-overview'],
+    queryFn: () => analyticsService.getOverview(),
+  })
+
   // Group stats
-  const totalJobs = jobs?.length || 0
-  const openJobs = jobs?.filter(j => j.status === 'open').length || 0
+  const totalJobs = overview?.stats.total_jobs ?? (jobs?.length || 0)
+  const openJobs = overview?.stats.open_jobs ?? (jobs?.filter(j => j.status === 'open').length || 0)
+  const avgMatchScore = overview?.stats.avg_match_score != null ? `${overview.stats.avg_match_score}%` : '—'
+  const hired = overview?.stats.hired_count ?? 0
+  const rejected = overview?.stats.rejected_count ?? 0
+  const pending = overview?.stats.pending_count ?? 0
+
+  const funnel = overview?.funnel ?? []
+  const maxVal = funnel[0]?.value || 1
+  const funnelWithPct = funnel.map(f => ({ ...f, pct: Math.round((f.value / maxVal) * 100) }))
 
   return (
     <div className="space-y-6 animate-slide-up pb-10">
@@ -38,19 +54,56 @@ export default function DashboardPage() {
       </div>
 
       {/* ── Stats Row ──────────────────────────────────────────────────────── */}
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+      <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
         <div className="card flex flex-col gap-2 bg-gradient-to-br from-surface-100 to-primary-900/10 border-primary-900/30">
-          <span className="text-surface-300 text-xs font-semibold uppercase tracking-wider">Total Active Roles</span>
+          <span className="text-surface-300 text-xs font-semibold uppercase tracking-wider">Active Roles</span>
           <span className="text-3xl font-bold text-primary-400">{totalJobs}</span>
+          <span className="text-xs text-surface-400">{openJobs} Open</span>
         </div>
         <div className="card flex flex-col gap-2">
-          <span className="text-surface-300 text-xs font-semibold uppercase tracking-wider">Open Positions</span>
-          <span className="text-3xl font-bold text-surface-50">{openJobs}</span>
+           <span className="text-surface-300 text-xs font-semibold uppercase tracking-wider">Avg Match</span>
+           <span className="text-3xl font-bold text-violet-400">{avgMatchScore}</span>
         </div>
         <div className="card flex flex-col gap-2">
-           <span className="text-surface-300 text-xs font-semibold uppercase tracking-wider">Avg Match Score</span>
-           <span className="text-3xl font-bold text-surface-50">—</span>
+           <span className="text-surface-300 text-xs font-semibold uppercase tracking-wider">Hired</span>
+           <span className="text-3xl font-bold text-green-400">{hired}</span>
         </div>
+        <div className="card flex flex-col gap-2">
+           <span className="text-surface-300 text-xs font-semibold uppercase tracking-wider">Pending</span>
+           <span className="text-3xl font-bold text-yellow-400">{pending}</span>
+           <span className="text-xs text-red-400">{rejected} Rejected</span>
+        </div>
+      </div>
+
+      {/* ── Recruitment Funnel ─────────────────────────────────────────── */}
+      <div className="card">
+        <h2 className="text-lg font-bold text-white mb-6">Recruitment Funnel</h2>
+        {analyticsLoading ? (
+           <div className="h-32 flex items-center justify-center text-surface-400">Loading pipeline data...</div>
+        ) : funnel.length === 0 ? (
+          <p className="text-surface-400 text-sm text-center py-8">No resumes processed yet.</p>
+        ) : (
+          <div className="space-y-4">
+            {funnelWithPct.map((step, i) => (
+              <div key={step.label}>
+                <div className="flex items-center justify-between mb-1.5">
+                  <span className="text-sm font-medium text-surface-200">{step.label}</span>
+                  <span className="text-sm font-bold text-surface-50">{step.value}</span>
+                </div>
+                <div className="w-full bg-surface-200 rounded-full h-3 overflow-hidden">
+                  <div
+                    className="h-3 rounded-full transition-all duration-700"
+                    style={{
+                      width: `${step.pct}%`,
+                      backgroundColor: FUNNEL_COLORS[i % FUNNEL_COLORS.length],
+                      boxShadow: `0 0 8px ${FUNNEL_COLORS[i % FUNNEL_COLORS.length]}66`
+                    }}
+                  />
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
       </div>
 
       {/* ── Job Roles List ─────────────────────────────────────────────────── */}

@@ -9,13 +9,14 @@ from pydantic import BaseModel, Field
 
 
 class JobCreate(BaseModel):
-    title: str = Field(..., min_length=3, max_length=255, examples=["Senior Backend Engineer"])
-    department: Optional[str] = Field(None, max_length=100)
-    location: Optional[str] = Field(None, max_length=100)
-    description: str = Field(..., min_length=10, examples=["We are looking for..."])
-    requirements: str = Field(..., min_length=10, examples=["5+ years Python..."])
+    title: str = Field(..., min_length=2, max_length=30, examples=["Senior Backend Engineer"])
+    department: str = Field(..., min_length=2, max_length=30, examples=["Engineering"])
+    location: Optional[str] = Field(None, min_length=2, max_length=30)
+    description: str = Field(..., min_length=5, examples=["We are looking for..."])
+    requirements: str = Field(..., min_length=5, examples=["5+ years Python..."])
     experience_min: int = Field(0, ge=0)
     experience_max: Optional[int] = Field(None, ge=0)
+    hiring_threshold: int = Field(75, ge=0, le=100)
 
 
 class JobUpdate(BaseModel):
@@ -26,6 +27,7 @@ class JobUpdate(BaseModel):
     requirements: Optional[str] = None
     experience_min: Optional[int] = Field(None, ge=0)
     experience_max: Optional[int] = Field(None, ge=0)
+    hiring_threshold: Optional[int] = Field(None, ge=0, le=100)
     status: Optional[Literal["open", "closed", "draft", "archived"]] = None
 
 
@@ -39,6 +41,7 @@ class JobResponse(BaseModel):
     requirements: str
     experience_min: int
     experience_max: Optional[int]
+    hiring_threshold: int
     status: str
     created_at: datetime
     updated_at: datetime
